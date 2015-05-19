@@ -2,9 +2,7 @@
 title: API Reference
 
 language_tabs:
-  - shell
-  - ruby
-  - python
+  - ruby + rails
 
 toc_footers:
   - <a href='#'>Sign Up for a Developer Key</a>
@@ -18,151 +16,165 @@ search: true
 
 # Introduction
 
-Welcome to the Kittn API! You can use our API to access Kittn API endpoints, which can get information on various cats, kittens, and breeds in our database.
+Welcome to the Instahash API! You can use our API to access all of you Facebook photos and see them in one convinient place.
 
-We have language bindings in Shell, Ruby, and Python! You can view code examples in the dark area to the right, and you can switch the programming language of the examples with the tabs in the top right.
+We integrated Facebook's Graph API with the convinient  Fb_Graph2 gem, that allow developers to manage data simply and well organized.
+
+You can check Fb_Graph2 API at [Fb_Graph2](https://github.com/nov/fb_graph2) 
 
 This example API documentation page was created with [Slate](http://github.com/tripit/slate). Feel free to edit it and use it as a base for your own API's documentation.
 
-# Authentication
+# Controllers
 
-> To authorize, use this code:
+The Instahash API is all about controlling the information of the user and manage it in a simple-restful way.
 
-```ruby
-require 'kittn'
+## AlbumsController
+> 	def index
+<br>&nbsp;		fb_login = auth
+<br>&nbsp;		if fb_login[:status_code] == 200
+<br>&nbsp;&nbsp;			response = fb_login[:data].albums
+<br>&nbsp;		else
+<br>&nbsp;&nbsp;			response = fb_login[:data]
+<br>&nbsp;		end	
+<br>&nbsp;		respond_to do |format|
+<br>&nbsp;&nbsp;			format.json { render :json => response, status: fb_login[:status_code]}
+<br>&nbsp;		end
+<br>	end
+	
+*<aside>
+The AlbumsController authenticates the Facebook user and stores data
+</aside>*
 
-api = Kittn::APIClient.authorize!('meowmeowmeow')
-```
+>		def auth
+<br>&nbsp;			begin
+<br>&nbsp;&nbsp;				user = FbGraph2::User.new(params[:user_id]).authenticate(params[:access_token])
+<br>&nbsp;&nbsp;				user.fetch
+<br>&nbsp;&nbsp;				status_code = 200
+<br>&nbsp;&nbsp;				return {:data => user, :status_code => status_code}
+<br>&nbsp;			rescue => ex
+<br>&nbsp;&nbsp;			   ex.message
+<br>&nbsp;&nbsp;			   status_code = 400
+<br>&nbsp;&nbsp;			   return {:data => ex.message, :status_code => status_code}
+<br>&nbsp;			end
+<br>		end
 
-```python
-import kittn
 
-api = kittn.authorize('meowmeowmeow')
-```
+<p>The FbGraph2 Api gets the main fields from the Facebook Api User request and displays his Albums </p>
 
-```shell
-# With shell, you can just pass the correct header with each request
-curl "api_endpoint_here"
-  -H "Authorization: meowmeowmeow"
-```
+`user = FbGraph2::User.new(params[:user_id]).authenticate(params[:access_token])`
+<br>
+*<aside>
+The albums_controller_spec verifies that the Controller responds accordingly
+</aside>*
+<p>The album controller spec checks that the controller is:</p>
+<ul>
+  <li>Properly versioned </li>
+  <li> Responds to an user_id and access_token </li>
+  <li> It's not an unauthorized access </li>
+  <li> Returns a JSON </li>
+</ul>
 
-> Make sure to replace `meowmeowmeow` with your API key.
 
-Kittn uses API keys to allow access to the API. You can register a new Kittn API key at our [developer portal](http://example.com/developers).
+## PhotosController
 
-Kittn expects for the API key to be included in all API requests to the server in a header that looks like the following:
+>	def indexcd ....
+<br>&nbsp;		response = photos
+<br>&nbsp;		respond_to do |format|
+<br>&nbsp;&nbsp;			format.json { render :json => response[:data], status: response[:status_code]}
+<br>&nbsp;		end
+<br>&nbsp;	end
 
-`Authorization: meowmeowmeow`
+>		def photos
+<br>&nbsp;			begin
+<br>&nbsp;&nbsp;				album = FbGraph2::Album.new(params[:album_id]).authenticate(params[:access_token]).fetch.photos
+<br>&nbsp;&nbsp;				photos = []
+<br>&nbsp;&nbsp;				album.each do |photo|
+<br>&nbsp;&nbsp;&nbsp;					if photo.name
+<br>&nbsp;&nbsp;&nbsp;&nbsp;						matches = (photo.name).scan(/\B#\w*[\u00F1A-Za-z_]+\w*/)
+<br>&nbsp;&nbsp;&nbsp;					else
+<br>&nbsp;&nbsp;&nbsp;&nbsp;						matches = []
+<br>&nbsp;&nbsp;&nbsp;					end
+<br>&nbsp;&nbsp;&nbsp;					tag = Api::V1::Tag.where(photo_id:photo.id)
+<br>&nbsp;&nbsp;&nbsp;					local_tags = []
+<br>&nbsp;&nbsp;&nbsp;					tag.each do |t|
+<br>&nbsp;&nbsp;&nbsp;&nbsp;						local_tags.push(t.tag)
+<br>&nbsp;&nbsp;&nbsp;					end
+<br>&nbsp;&nbsp;&nbsp;				   photos.push({:id => photo.id, :picture => photo.picture, :name => photo.name, :link => photo.link, :tags => matches, :local_tags => local_tags})
+<br>&nbsp;&nbsp;&nbsp;				end
+<br>&nbsp;&nbsp;				status_code = 200
+<br>&nbsp;&nbsp;				return {:data => photos, :status_code => status_code}
+<br>&nbsp;			rescue => ex
+<br>&nbsp;&nbsp;			   ex.message
+<br>&nbsp;&nbsp;			   status_code = 400
+<br>&nbsp;	&nbsp;		   return {:data => ex.message, :status_code => status_code}
+<br>&nbsp;			end
+<br>		end
 
-<aside class="notice">
-You must replace <code>meowmeowmeow</code> with your personal API key.
-</aside>
+*<aside>
+The PhotosController obtains a collection of Photos giving a certain Album.
+</aside>*
+<p> Again, The FbGraph2 Api gets the fields from the Facebook API, but this time from not from the User. 
+    Instead, it uses the Album to get the photos of a certain album and gets its attributes (name, link, picture).  </p>
 
-# Kittens
 
-## Get All Kittens
+		
+`album = FbGraph2::Album.new(params[:album_id]).authenticate(params[:access_token]).fetch.photos`
+<br>
+*<aside>
+The photos_controller_spec verifies that the Controller responds accordingly
+</aside>*
+<p>The photo controller spec checks that the controller is:</p>
+<ul>
+  <li>Properly versioned </li>
+  <li> Responds to an album_id and access_token </li>
+  <li> It's not an unauthorized access </li>
+  <li> Returns a JSON </li>
+</ul>
 
-```ruby
-require 'kittn'
 
-api = Kittn::APIClient.authorize!('meowmeowmeow')
-api.kittens.get
-```
+## TagsController
+>  def create
+<br>&nbsp;  	if params[:tag][:photo_id]
+<br>&nbsp;&nbsp;  		tag = Api::V1::Tag.new(tag_params)
+<br>&nbsp;&nbsp;  		respond_to do |format|
+<br>&nbsp;&nbsp;&nbsp;  			if tag.save
+<br>&nbsp;&nbsp;&nbsp;&nbsp;  				format.json {render :json => tag, status: 201}
+<br>&nbsp;&nbsp;&nbsp;  			else
+<br>&nbsp;&nbsp;  				format.jsont {render :json => "An error ocurred"}
+<br>&nbsp;&nbsp;  			end
+<br>&nbsp;  		end
+<br>  	end
 
-```python
-import kittn
+>  def destroy
+<br>&nbsp;  	if params[:tag][:photo_id]
+<br>&nbsp;&nbsp;  		tag = Api::V1::Tag.where(photo_id:params[:tag][:photo_id], tag:params[:tag][:tag]).first
+<br>&nbsp;&nbsp;  		tag.destroy
+<br>&nbsp;&nbsp;  		respond_to do |format|
+<br>&nbsp;&nbsp;&nbsp;			format.json { head 204 }
+<br>&nbsp;&nbsp;		  end
+<br>&nbsp;  	  end
+<br>    end
+  
+*<aside>
+The TagsController Inserts and Deletes Tag records.
+</aside>*
+<p> This Controller Creates new instances of the Tag class and saves them in an Active Record. 
+    Also is in charge of Destroying instances of Tag object obtained from the database. 
+    After doing either action, the Tag Controller returns the object that was modified.</p>
 
-api = kittn.authorize('meowmeowmeow')
-api.kittens.get()
-```
-
-```shell
-curl "http://example.com/api/kittens"
-  -H "Authorization: meowmeowmeow"
-```
-
-> The above command returns JSON structured like this:
-
-```json
-[
-  {
-    "id": 1,
-    "name": "Fluffums",
-    "breed": "calico",
-    "fluffiness": 6,
-    "cuteness": 7
-  },
-  {
-    "id": 2,
-    "name": "Isis",
-    "breed": "unknown",
-    "fluffiness": 5,
-    "cuteness": 10
-  }
-]
-```
-
-This endpoint retrieves all kittens.
-
-### HTTP Request
-
-`GET http://example.com/kittens`
-
-### Query Parameters
-
-Parameter | Default | Description
---------- | ------- | -----------
-include_cats | false | If set to true, the result will also include cats.
-available | true | If set to false, the result will include kittens that have already been adopted.
-
-<aside class="success">
-Remember — a happy kitten is an authenticated kitten!
-</aside>
-
-## Get a Specific Kitten
-
-```ruby
-require 'kittn'
-
-api = Kittn::APIClient.authorize!('meowmeowmeow')
-api.kittens.get(2)
-```
-
-```python
-import kittn
-
-api = kittn.authorize('meowmeowmeow')
-api.kittens.get(2)
-```
-
-```shell
-curl "http://example.com/api/kittens/3"
-  -H "Authorization: meowmeowmeow"
-```
-
-> The above command returns JSON structured like this:
-
-```json
-{
-  "id": 2,
-  "name": "Isis",
-  "breed": "unknown",
-  "fluffiness": 5,
-  "cuteness": 10
-}
-```
-
-This endpoint retrieves a specific kitten.
-
-<aside class="warning">If you're not using an administrator API key, note that some kittens will return 403 Forbidden if they are hidden for admins only.</aside>
-
-### HTTP Request
-
-`GET http://example.com/kittens/<ID>`
-
-### URL Parameters
-
-Parameter | Description
---------- | -----------
-ID | The ID of the cat to retrieve
+`CREATE  :: tag = Api::V1::Tag.new(tag_params)`
+<br>
+<br>
+`DESTROY :: tag = Api::V1::Tag.where(photo_id:params[:tag][:photo_id], tag:params[:tag][:tag]).first`
+<br>
+*<aside>
+The photos_controller_spec verifies that the Controller responds accordingly
+</aside>*
+<p>The photo controller spec checks that the controller is:</p>
+<ul>
+  <li>Properly versioned </li>
+  <li> Responds with a Tag object in JSON </li>
+  <li> It's not an unauthorized access </li>
+  <li> Returns a JSON </li>
+</ul>
 
